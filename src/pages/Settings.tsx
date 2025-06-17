@@ -9,6 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { AppSettings, defaultSettings, Punishment } from "@/types/settings";
 import { Input } from "@/components/ui/input";
+import { getPoints, setPoints } from "@/utils/pointsStorage";
+import { useEffect } from "react";
 
 // Capacitor/simulated ScreenTimePlugin bridge
 const ScreenTimePlugin = (window as any).ScreenTimePlugin ?? {
@@ -93,6 +95,45 @@ const Settings = () => {
       setSettings(JSON.parse(saved));
     }
   }, []);
+
+  // Add penalty event listener
+React.useEffect(() => {
+  const handleLimitExceeded = (event: any) => {
+    const { app, minutesUsed, limit } = event.detail;
+    
+    // Get current points
+    const currentPoints = getPoints();
+    
+    // Calculate penalty (you can customize this)
+    const penalty = Math.min(50, (minutesUsed - limit) * 5); // 5 points per minute over, max 50
+    
+    // Deduct points
+    const newPoints = Math.max(0, currentPoints - penalty);
+    setPoints(newPoints);
+    
+    // Show notification
+    toast({
+      title: "⚠️ App Limit Exceeded!",
+      description: `${app}: Used ${minutesUsed}/${limit} min. Lost ${penalty} points!`,
+      variant: "destructive",
+    });
+    
+    // Optional: Apply additional punishment from settings
+    if (settings.punishments.enablePunishments) {
+      // You can add custom punishment logic here
+      console.log("Additional punishment applied for", app);
+    }
+  };
+
+  // Register the event listener
+  window.addEventListener('limitExceeded', handleLimitExceeded);
+  
+  // Cleanup
+  return () => {
+    window.removeEventListener('limitExceeded', handleLimitExceeded);
+  };
+}, [settings.punishments.enablePunishments, toast]);
+
 
   const [appLimits, setAppLimits] = useState<{ [app: string]: number }>({});
   const [usageStats, setUsageStats] = useState<{ [pkg: string]: number }>({});
